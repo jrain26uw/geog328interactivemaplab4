@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Washington Counties - Fully Vaccinated per 10k</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.5.0/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.5.0/mapbox-gl.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: Arial, sans-serif;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+
+        .map-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(0, 0, 0, 0.2);
+            border-radius: 3px;
+            overflow: auto;
+            padding: 10px;
+            pointer-events: auto; 
+            max-width: 250px;
+        }
+
+        #features {
+            pointer-events: none;
+        }
+
+        #text-description {
+            pointer-events: auto;
+        }
+
+        #legend {
+            margin-top: 10px;
+        }
+
+        .legend-key {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            margin-right: 5px;
+            border-radius: 20%;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+
+    <div class="map-overlay" id="features">
+        <h2>COVID-19 Vaccination Status of Washington</h2>
+        <div id="text-description">
+            <p>Hover over a county!</p>
+        </div>
+        <div id="legend"></div>
+    </div>
+
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1IjoianJhaW4yNiIsImEiOiJjbWhjcHF3eGswd3c0MmtuMXZwbjN3MDZ0In0.YtlMh8YBzEOKX6hTE-GhjQ';
+
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: "mapbox://styles/mapbox/outdoors-v12",
+            center: [-120.5, 47.5], 
+            zoom: 6
+        });
+
+        async function loadCovidData() {
+            const response = await fetch('assets/wa-covid-data-102521.geojson');
+            const covidData = await response.json();
+
+            map.on('load', () => {
+                map.addSource('waCovid', {
+                    type: 'geojson',
+                    data: covidData
+                });
+
+                map.addLayer({
+                    id: 'waCovid-layer',
+                    type: 'fill',
+                    source: 'waCovid',
+                    paint: {
+                        'fill-color': [
+                            'step',
+                            ['get', 'fullyVaxPer10k'],
+                            '#c9231a',       // <1000
+                            1000, '#e0541d', // 1000–1999
+                            2000, '#f59520', // 2000–3999
+                            4000, '#e3cf1e', // 4000–5999
+                            6000, '#21e31e', // 6000–7999
+                            8000, '#169114', // 8000–9999
+                            10000, '#0f610d' // 10000+
+                        ],
+                        'fill-outline-color': '#BBBBBB',
+                        'fill-opacity': 0.7
+                    }
+                });
+
+                map.addLayer({
+                    id: 'county-borders',
+                    type: 'line',
+                    source: 'waCovid',
+                    paint: {
+                        'line-color': '#333',
+                        'line-width': 1
+                    }
+                });
+
+                // Build legend
+                const layers = ['0-999','1,000-1,999','2,000-3,999','4,000-5,999','6,000-7,999','8,000-10,000'];
+                const colors = ['#c9231a70','#e0541d70','#f5952070','#e3cf1e70','#21e31e70','#16911470','#0f610d70','#80002670'];
+
+                const legend = document.getElementById('legend');
+                legend.innerHTML = "<b>Number of Fully Vaccinated Citizens in Each Washington County per 10k</b><br><br>";
+                layers.forEach((layer, i) => {
+                    const item = document.createElement('div');
+                    const key = document.createElement('span');
+                    key.className = 'legend-key';
+                    key.style.backgroundColor = colors[i];
+
+                    const value = document.createElement('span');
+                    value.innerHTML = layer;
+
+                    item.appendChild(key);
+                    item.appendChild(value);
+                    legend.appendChild(item);
+                });
+
+                // Hover functionality
+                map.on('mousemove', (e) => {
+                    const features = map.queryRenderedFeatures(e.point, { layers: ['waCovid-layer'] });
+                    const description = document.getElementById('text-description');
+
+                    if (features.length > 0) {
+                        const props = features[0].properties;
+                        description.innerHTML = `<h3>${props.name}</h3>
+                                                 <p><strong>${props.fullyVaxPer10k}</strong> fully vaccinated per 10k people</p>`;
+                    } else {
+                        description.innerHTML = `<p>Hover over a county!</p>`;
+                    }
+                });
+            });
+        }
+
+        loadCovidData();
+    </script>
+</body>
+
+</html>
+
